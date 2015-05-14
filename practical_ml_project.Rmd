@@ -1,0 +1,134 @@
+---
+title: "Practical Machine Learning Project"
+author: "F. Novak"
+date: "May 13, 2015"
+output: 
+  html_document:
+    number_sections: true
+---
+
+# Introduction
+## Summary
+A model was constructed and trained to use human activity data to predict the manner in which weight lifing excercise was performed, either correctly or following one of four common errors.  Excellent results, although computationally expensive, were obtained with a Random Forest algorithm.  Respectable results, in addition to being computationally inexpensive, were obtained with Linear Discriminant Analysis.
+
+## Purpose
+The goal of the project is to use motion data to predict the manner in which they did the exercise, whether correctly (A) or following one of four common errors (B - E) 
+
+## Source of Data
+Here is the citation for the data used for this project.
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+The training and testing data were downloaded on 5/20/2015 at 1154AM NY time from the following links:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pmltraining.csv
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pmltesting.csv
+
+# Data Preprocessing & Slicing
+## Steps to Tidy Up Data
+The following columns were removed from the data.
+
+* The first 7 columns because they were administrative. One column was just an index, and the others were related to the date, which would not be useful for predicting future results. 
+* The columns that were mostly NA.  It was found that most columns had no NA data, but some had~ 97% NA and were removed.  
+* The columns containing summary stastics (kurtosis, skewness, min, max, and amp), and were removed.
+
+The code below preforms this pre-processing.
+```{r, eval = FALSE}
+d <- read.csv("pml-training.csv")
+
+d1 <- d1[,8:ncol(d1)]  # first bullet above
+d <- d[,colSums(is.na(d)) ==0]  # second bullet above
+# determine rows with summary statistics for third bullet
+kurt <- grep("^kurt",names(d))
+skew <- grep("^skew",names(d))
+min <- grep("^min",names(d))
+max <- grep("^max",names(d))
+amp <- grep("^amp",names(d))
+set = c(kurt,skew,min,max,amp)
+d1 <- select(d,-set)   ## third bullet above
+```
+
+This left the dataset with all 19,622 rows, 53 columns.
+
+## Partitioning of Data
+The data set was partitioned into a training set and a cross-validation set.  Of the total, 60% was used for training set and 40% for cross-validation.  This was somewhat arbitrary, but in line with convention.
+
+```{r, eval=FALSE}
+inTrain = createDataPartition(y=d1$classe, p = 0.6, list = FALSE)
+dt = d1[ inTrain,]
+dcv = d1[-inTrain,]
+```
+
+# Models
+## Expected Sample Error
+With 19,622 rows and 53 columns of data, the main concern was about variance instead of bias.  The undesirable symptom is overfitting.  It was found that the training and cross-validation  errors were similar, so that overfitting is not a problem.
+
+## Description of Models
+The results of three models are presented.  
+
+### Random Forest
+A model was trained with Random Forest algorithm in the caret package, with rather impressive results as tabulated in a later section.
+
+```{r, eval = FALSE}
+fit_rf <- train(classe ~ ., method="rf", data=dt)
+yhat.rf.tr <- predict(fit_rf, newdata = dt)
+acc_rf.tr <- mean(yhat.rf.tr == dt$classe)
+```
+
+The downside of the Random Forest algorithm was that it took several hours to run on a laptop computer. However, if very accurate results are desirable, this is a reasonable price to pay because it predicts results based on new data quickly.
+
+### Linear Discriminant Analysis
+A model was trained with Linear Discriminant algorithm in the caret package, with respectable results as tabulated in a later section.
+
+```{r, eval = FALSE}
+fit_lda <- train(classe ~ ., method="lda", data=dt)
+yhat.lda.tr <- predict(fit_lda, newdata = dt)
+acc_lda.tr <- mean(yhat.lda.tr == dt$classe)
+```
+
+The Linear Discriminant Algorithm ran quickly, within a few seconds.  This would be a strong advantage over Random Forest if it is important to train the model frequently.  However, the ease of training comes at the cost of less accuracy.
+
+### Trees
+A model was trained with Rpart (CART) algorithm in the caret package, but with rather unimpressive results.
+
+```{r, eval = FALSE}
+fit_cart <- train(classe ~ ., method="rpart", data=dt)
+yhat.cart.tr <- predict(fit_cart, newdata = dt)
+acc_cart.tr <- mean(yhat.cart.tr == dt$classe)
+```
+
+The trees (rpart or CART) algorithm ran fairly quickly, about the same as the linear discriminant analysis, but the accuracy was not as good.  The advantage of this algorithm is that the results are highly interpretable in that a figure can be drawn to show the sorting algorithm.  It is not shown in this report, however, because the results are not very accurate.
+
+
+## Cross Validation
+Each of the three models was cross-validated using the data that was held back. The code is immediately below, and the results are tabulated in the next section.
+
+```{r, eval=FALSE}
+# LDA (cross-validate)
+yhat.lda.cv <- predict(fit_lda, newdata = dcv)
+acc_lda.cv <- mean(yhat.lda.cv == dcv$classe)
+
+# Random Forest (cross-validate)
+yhat.rf.cv <- predict(fit_rf, newdata = dcv)
+acc_rf.cv <- mean(yhat.rf.cv == dcv$classe)
+
+# Trees (cross-validate)
+yhat.cart.cv <- predict(fit_cart, newdata = dcv)
+acc_cart.cv <- mean(yhat.cart.cv == dcv$classe)
+```
+
+# Results
+## Numerical Results
+Model Type | Training Accuracy | Cross Validation Accuracy| Comments
+------------- | ---------------|------------------|----
+Random Forest | 100% | 99.0% | Very accurate, but took hours to run
+Linear Discriminant Analysis | 70.1% | 70.7%| Respectable results; ran quickly
+Trees (rpart) | 49.6% | 49.2% | Ran quickly but worst results
+
+The Random Forest model was used to submit the predictions of test cases, and obtained a perfect score (20/20) on the first try for each submission.
+
+## Discussion of Sample Error
+Clearly the cross-validation error was not far worse than the training error.  In fact, in the case of linear discriminant analysis, it was better.  When the test cases were submitted using the randome forest model, the cases were predicted with 100% accuracy (20/20) on the first try.  This leads to the conclusion that neither bias nor overfitting was a problem.  
+
+# Conclusions
+Excellent results, but computationally expensive, were obtained with a Random Forest algorithm.  Respectable results, and computationally inexpensive, were obtained with Linear Discriminant Analysis. Depending on the application, either of these models would suffice.  The Random Forest algorithm was used for submission of results.
